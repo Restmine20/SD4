@@ -1,0 +1,146 @@
+﻿@{
+  ViewData["Title"] = "Frontend для Shopoholic";
+}
+
+<h2>Интерфейс пользователя</h2>
+
+<div>
+  <label>
+    <input type="radio" name="action" value="createAccount" onclick="showForm(this.value)" /> Создать счёт
+  </label>
+  <label>
+    <input type="radio" name="action" value="deposit" onclick="showForm(this.value)" /> Пополнить счёт
+  </label>
+  <label>
+    <input type="radio" name="action" value="createOrder" onclick="showForm(this.value)" /> Создать заказ
+  </label>
+  <label>
+    <input type="radio" name="action" value="getBalance" onclick="showForm(this.value)" /> Показать баланс
+  </label>
+  <label>
+    <input type="radio" name="action" value="getOrders" onclick="showForm(this.value)" /> Показать заказы
+  </label>
+  <label>
+    <input type="radio" name="action" value="getOrderById" onclick="showForm(this.value)" /> Показать заказ по ID
+  </label>
+</div>
+
+<div id="formFields" style="margin: 15px 0; padding: 10px; border: 1px solid #ccc; display: none;">
+</div>
+
+<button id="executeBtn" onclick="executeAction()" style="display: none;">Выполнить</button>
+
+<h3>Результат:</h3>
+<pre id="output" style="background:#f8f8f8; padding:10px; border:1px solid #ddd; min-height: 50px;"></pre>
+
+<script>
+  const API_BASE = 'http://localhost:8080/api/Gateway';
+
+  let currentAction = null;
+
+  function log(msg) {
+    const out = document.getElementById('output');
+    out.textContent += msg + '\n';
+  }
+
+  function showForm(action) {
+    currentAction = action;
+    const fieldsDiv = document.getElementById('formFields');
+    const btn = document.getElementById('executeBtn');
+    fieldsDiv.innerHTML = '';
+
+    let html = '';
+
+    if (action === 'createAccount' || action === 'createOrder' || action === 'getOrders') {
+      html += '<label>User ID:<br/><input type="text" id="userId" value="123e4567-e89b-12d3-a456-426614174000" /></label><br/><br/>';
+    }
+
+    if (action === 'deposit' || action === 'getBalance') {
+      html += '<label>ID счёта:<br/><input type="text" id="accountId" value="..." /></label><br/><br/>';
+    }
+
+    if (action === 'getOrderById') {
+      html += '<label>ID заказа:<br/><input type="text" id="orderId" value="..." /></label><br/><br/>';
+    }
+
+    if (action === 'createOrder') {
+      html += '<label>Сумма заказа:<br/><input type="number" id="amount" value="100" step="0.01" /></label><br/><br/>';
+      html += '<label>Описание заказа:<br/><input type="text" id="description" value="Новогодний подарок" /></label><br/><br/>';
+    }
+
+    if (action === 'deposit') {
+      html += '<label>Сумма пополнения:<br/><input type="number" id="amount" value="50" step="0.01" /></label><br/><br/>';
+    }
+
+    fieldsDiv.innerHTML = html;
+    fieldsDiv.style.display = 'block';
+    btn.style.display = 'inline-block';
+  }
+
+  async function callApi(method, url, body = null) {
+    const opts = {
+      method: method,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    };
+    if (body) opts.body = new URLSearchParams(body).toString();
+    try {
+      const res = await fetch(API_BASE + url, opts);
+      const text = await res.text();
+      log(`→ ${url} → [${res.status}] ${text}`);
+    } catch (err) {
+      log(`❌ Ошибка сети: ${err.message}`);
+      log(`   Убедитесь, что gateway доступен на http://localhost:8080`);
+    }
+  }
+
+  function executeAction() {
+    switch (currentAction) {
+      case 'createAccount': {
+        const userId = document.getElementById('userId')?.value?.trim();
+        if (!userId) { log('Укажите User ID'); return; }
+        callApi('POST', '/accounts', { userId });
+        break;
+      }
+      case 'deposit': {
+        const accountId = document.getElementById('accountId')?.value?.trim();
+        const amount = document.getElementById('amount')?.value;
+        if (!accountId) { log('Укажите ID счёта'); return; }
+        if (!amount) { log('Укажите сумму пополнения'); return; }
+        callApi('POST', '/accounts/deposit', { id: accountId, amount });
+        break;
+      }
+      case 'createOrder': {
+        const userId = document.getElementById('userId')?.value?.trim();
+        const amount = document.getElementById('amount')?.value;
+        const description = document.getElementById('description')?.value?.trim();
+        if (!userId) { log('Укажите User ID'); return; }
+        if (!amount) { log('Укажите сумму заказа'); return; }
+        if (!description) { log('Укажите описание заказа'); return; }
+        callApi('POST', '/orders', { userId, totalAmount: amount, description });
+        break;
+      }
+      case 'getBalance': {
+        const accountId = document.getElementById('accountId')?.value?.trim();
+        if (!accountId) { log('Укажите ID счёта'); return; }
+        callApi('GET', `/accounts/${accountId}`);
+        break;
+      }
+      case 'getOrders': {
+        const userId = document.getElementById('userId')?.value?.trim();
+        if (!userId) { log('Укажите User ID'); return; }
+        callApi('GET', `/orders/user/${userId}`);
+        break;
+      }
+      case 'getOrderById': {
+        const orderId = document.getElementById('orderId')?.value?.trim();
+        if (!orderId) { log('Укажите ID заказа'); return; }
+        callApi('GET', `/orders/${orderId}`);
+        break;
+      }
+      default:
+        log('Выберите действие');
+    }
+  }
+
+  document.getElementById('output').textContent = '';
+</script>
